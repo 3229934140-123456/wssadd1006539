@@ -14,11 +14,33 @@ export interface PackageInfo {
   allowTransfer: boolean
 }
 
+export interface AgeRange {
+  enabled: boolean
+  min: number
+  max: number
+}
+
+export interface TimeSlot {
+  enabled: boolean
+  weekdaysOnly: boolean
+  startTime: string
+  endTime: string
+}
+
+export interface MinimumConsumption {
+  enabled: boolean
+  amount: number
+}
+
 export interface RestrictionRules {
   childrenNotAllowed: boolean
   pregnancyNeedDoctor: boolean
   memberOnly: boolean
   holidayNotAvailable: boolean
+  ageRange: AgeRange
+  timeSlot: TimeSlot
+  minimumConsumption: MinimumConsumption
+  stackableDiscount: boolean
   customRules: string[]
 }
 
@@ -26,7 +48,16 @@ export interface ExportSettings {
   storeName: string
   paperSize: 'A4' | 'A5' | 'postcard'
   showOriginalPrice: boolean
-  outputType: 'deskCard' | 'clinicNotice' | 'momentsPoster'
+  outputTypes: ('deskCard' | 'clinicNotice' | 'momentsPoster')[]
+}
+
+export interface AppData {
+  packageInfo: PackageInfo
+  restrictionRules: RestrictionRules
+  exportSettings: ExportSettings
+  lastSavedAt: string | null
 }
 
 export type TabType = 'editor' | 'restriction' | 'export'
+
+export type OutputType = 'deskCard' | 'clinicNotice' | 'momentsPoster'

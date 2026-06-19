@@ -1,43 +1,59 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { PackageInfo, RestrictionRules, ExportSettings, TabType } from './types'
+import { usePersistentState, getLastSavedTime, formatSavedTime } from './hooks/usePersistentState'
 import PackageEditor from './components/PackageEditor'
 import RestrictionPanel from './components/RestrictionPanel'
 import ExportPanel from './components/ExportPanel'
 import './styles/App.css'
 
+const defaultPackageInfo: PackageInfo = {
+  name: '尊享洁牙抛光套餐',
+  targetAudience: '成人',
+  items: [
+    { id: '1', name: '全口超声波洁牙' },
+    { id: '2', name: '牙齿抛光' },
+    { id: '3', name: '口腔检查' },
+    { id: '4', name: '牙周护理指导' },
+  ],
+  retailPrice: 398,
+  activityPrice: 198,
+  validFrom: '2025-01-01',
+  validTo: '2025-12-31',
+  allowTransfer: true,
+}
+
+const defaultRestrictionRules: RestrictionRules = {
+  childrenNotAllowed: false,
+  pregnancyNeedDoctor: true,
+  memberOnly: false,
+  holidayNotAvailable: false,
+  ageRange: { enabled: false, min: 0, max: 0 },
+  timeSlot: { enabled: false, weekdaysOnly: false, startTime: '09:00', endTime: '18:00' },
+  minimumConsumption: { enabled: false, amount: 0 },
+  stackableDiscount: true,
+  customRules: [],
+}
+
+const defaultExportSettings: ExportSettings = {
+  storeName: '康美口腔诊所',
+  paperSize: 'A5',
+  showOriginalPrice: true,
+  outputTypes: ['deskCard'],
+}
+
 function App() {
   const [activeTab, setActiveTab] = useState<TabType>('editor')
+  const [packageInfo, setPackageInfo] = usePersistentState<PackageInfo>('packageInfo', defaultPackageInfo)
+  const [restrictionRules, setRestrictionRules] = usePersistentState<RestrictionRules>('restrictionRules', defaultRestrictionRules)
+  const [exportSettings, setExportSettings] = usePersistentState<ExportSettings>('exportSettings', defaultExportSettings)
+  const [savedTimeDisplay, setSavedTimeDisplay] = useState(formatSavedTime(getLastSavedTime()))
 
-  const [packageInfo, setPackageInfo] = useState<PackageInfo>({
-    name: '尊享洁牙抛光套餐',
-    targetAudience: '成人',
-    items: [
-      { id: '1', name: '全口超声波洁牙' },
-      { id: '2', name: '牙齿抛光' },
-      { id: '3', name: '口腔检查' },
-      { id: '4', name: '牙周护理指导' },
-    ],
-    retailPrice: 398,
-    activityPrice: 198,
-    validFrom: '2025-01-01',
-    validTo: '2025-12-31',
-    allowTransfer: true,
-  })
-
-  const [restrictionRules, setRestrictionRules] = useState<RestrictionRules>({
-    childrenNotAllowed: false,
-    pregnancyNeedDoctor: true,
-    memberOnly: false,
-    holidayNotAvailable: false,
-    customRules: [],
-  })
-
-  const [exportSettings, setExportSettings] = useState<ExportSettings>({
-    storeName: '康美口腔诊所',
-    paperSize: 'A5',
-    showOriginalPrice: true,
-    outputType: 'deskCard',
-  })
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setSavedTimeDisplay(formatSavedTime(getLastSavedTime()))
+    }, 30000)
+    return () => clearInterval(timer)
+  }, [packageInfo, restrictionRules, exportSettings])
 
   const tabs = [
     { key: 'editor' as TabType, label: '套餐编辑', icon: '✏️' },
@@ -56,8 +72,8 @@ function App() {
           </div>
         </div>
         <div className="header-tip">
-          <span className="tip-icon">💡</span>
-          <span>所有修改实时保存，支持打印和导出</span>
+          <span className="tip-icon">�</span>
+          <span>修改即保存 · 已落盘</span>
         </div>
       </header>
 
@@ -105,7 +121,7 @@ function App() {
         <span>© 2025 口腔诊所套餐配置器</span>
         <span className="footer-status">
           <span className="status-dot"></span>
-          数据已自动保存
+          {savedTimeDisplay}
         </span>
       </footer>
     </div>
