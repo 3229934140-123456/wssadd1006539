@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react'
-import { DentalPackage, FrontDeskInput, FrontDeskResult, CustomerInfo } from '../types'
+import { DentalPackage, FrontDeskInput, FrontDeskResult, CustomerInfo, PackageInfo, RestrictionRules } from '../types'
 import { useAppStore } from '../hooks/useAppStore'
 
 interface Props {
@@ -58,7 +58,8 @@ function FrontDeskQuote({ packages }: Props) {
   const [quoteModal, setQuoteModal] = useState<{
     open: boolean
     result: FrontDeskResult | null
-  }>({ open: false, result: null })
+    snapshotOverride: { packageInfo: PackageInfo; restrictionRules: RestrictionRules } | null
+  }>({ open: false, result: null, snapshotOverride: null })
 
   const [customer, setCustomer] = useState<CustomerInfo>({
     name: '',
@@ -78,10 +79,10 @@ function FrontDeskQuote({ packages }: Props) {
       isPregnant: input.isPregnant,
       note: '',
     })
-    setQuoteModal({ open: true, result: r })
+    setQuoteModal({ open: true, result: r, snapshotOverride: null })
   }
 
-  const closeQuoteModal = () => setQuoteModal({ open: false, result: null })
+  const closeQuoteModal = () => setQuoteModal({ open: false, result: null, snapshotOverride: null })
 
   const saveQuoteDraft = () => {
     if (!quoteModal.result) return
@@ -98,9 +99,24 @@ function FrontDeskQuote({ packages }: Props) {
 
   const printQuoteModal = () => {
     if (!quoteModal.result) return
-    const pkg = packages.find((p) => p.id === quoteModal.result!.packageId)
-    if (!pkg) return
-    const html = buildQuotePrintHtml(pkg, customer, input, quoteModal.result)
+    const snap = quoteModal.snapshotOverride
+    let dataPkg: DentalPackage
+    if (snap) {
+      dataPkg = {
+        id: quoteModal.result.packageId,
+        status: 'active',
+        packageInfo: snap.packageInfo,
+        restrictionRules: snap.restrictionRules,
+        exportSettings: { storeName: '', paperSize: 'A5', showOriginalPrice: true, outputTypes: [] },
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      }
+    } else {
+      const found = packages.find((p) => p.id === quoteModal.result!.packageId)
+      if (!found) return
+      dataPkg = found
+    }
+    const html = buildQuotePrintHtml(dataPkg, customer, input, quoteModal.result)
     const w = window.open('', '_blank', 'width=800,height=900')
     if (!w) return
     w.document.write(html)
@@ -279,8 +295,6 @@ function FrontDeskQuote({ packages }: Props) {
                     <button
                       className="btn btn-link"
                       onClick={() => {
-                        const pkg = packages.find((p) => p.id === d.packageId)
-                        if (!pkg) return
                         const fakeResult: FrontDeskResult = {
                           packageId: d.packageId,
                           packageName: d.packageName,
@@ -289,7 +303,14 @@ function FrontDeskQuote({ packages }: Props) {
                           customerMessage: d.customerMessage,
                         }
                         setCustomer({ ...d.customer })
-                        setQuoteModal({ open: true, result: fakeResult })
+                        setQuoteModal({
+                          open: true,
+                          result: fakeResult,
+                          snapshotOverride: {
+                            packageInfo: d.packageSnapshot.packageInfo,
+                            restrictionRules: d.packageSnapshot.restrictionRules,
+                          },
+                        })
                       }}
                     >查看</button>
                     <button
@@ -374,8 +395,10 @@ function FrontDeskQuote({ packages }: Props) {
 
       {/* ===== 成交单弹窗 ===== */}
       {quoteModal.open && quoteModal.result && (() => {
-        const pkg = packages.find((p) => p.id === quoteModal.result!.packageId)
-        if (!pkg) return null
+        const livePkg = packages.find((p) => p.id === quoteModal.result!.packageId)
+        const snap = quoteModal.snapshotOverride
+        const displayInfo = snap ? snap.packageInfo : (livePkg?.packageInfo ?? null)
+        if (!displayInfo) return null
         return (
           <div className="modal-mask" onClick={closeQuoteModal}>
             <div className="modal-content" onClick={(e) => e.stopPropagation()}>
@@ -384,14 +407,19 @@ function FrontDeskQuote({ packages }: Props) {
                 <button className="modal-close" onClick={closeQuoteModal}>×</button>
               </div>
               <div className="modal-body">
+                {snap && (
+                  <div className="fd-warning small" style={{ marginBottom: 12 }}>
+                    📋 此为历史报价快照，价格和项目为保存时的数据，不会随套餐修改而变化
+                  </div>
+                )}
                 <div className="quote-summary">
                   <div className="quote-price-row">
-                    <span>门市价：<del className="q-retail">¥{pkg.packageInfo.retailPrice}</del></span>
-                    <span className="q-activity">活动价：¥{pkg.packageInfo.activityPrice}</span>
+                    <span>门市价：<del className="q-retail">¥{displayInfo.retailPrice}</del></span>
+                    <span className="q-activity">活动价：¥{displayInfo.activityPrice}</span>
                   </div>
                   <div className="quote-items">
                     <strong>包含项目：</strong>
-                    {pkg.packageInfo.items.map((x) => x.name).join('、')}
+                    {displayInfo.items.map((x) => x.name).join('、')}
                   </div>
                 </div>
 

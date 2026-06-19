@@ -1,4 +1,5 @@
-import { useState, useCallback, useMemo } from 'react'
+import { useState, useCallback, useMemo, createContext, useContext } from 'react'
+import type { ReactNode } from 'react'
 import {
   AppState,
   DentalPackage,
@@ -263,7 +264,7 @@ export function evaluatePackage(
   }
 }
 
-export function useAppStore() {
+function useAppStoreInternal() {
   const [state, setState] = useState<AppState>(() => loadState())
 
   const currentPackage = useMemo(() => {
@@ -720,4 +721,23 @@ export function useAppStore() {
     deleteSchedule,
     executeDueSchedules,
   }
+}
+
+type AppStoreType = ReturnType<typeof useAppStoreInternal>
+
+const AppStoreContext = createContext<AppStoreType | null>(null)
+
+export function AppStoreProvider({ children }: { children: ReactNode }) {
+  const store = useAppStoreInternal()
+  return (
+    <AppStoreContext.Provider value={store}>
+      {children}
+    </AppStoreContext.Provider>
+  )
+}
+
+export function useAppStore(): AppStoreType {
+  const ctx = useContext(AppStoreContext)
+  if (!ctx) throw new Error('useAppStore must be used within <AppStoreProvider>')
+  return ctx
 }

@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo } from 'react'
 import { DentalPackage, PackageStatus, ViewType, ScheduleAction } from '../types'
 import { statusLabel, useAppStore } from '../hooks/useAppStore'
 
@@ -63,10 +63,6 @@ function PackageList({
     action: ScheduleAction
     targetDate: string
   }>({ action: 'activate', targetDate: new Date(Date.now() + 86400000).toISOString().slice(0, 10) })
-
-  useEffect(() => {
-    store.executeDueSchedules()
-  }, [store])
 
   const filteredPackages = packages.filter((p) => {
     if (filter !== 'all' && p.status !== filter) return false

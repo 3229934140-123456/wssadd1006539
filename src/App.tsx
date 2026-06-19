@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { ViewType } from './types'
-import { useAppStore } from './hooks/useAppStore'
+import { useAppStore, AppStoreProvider } from './hooks/useAppStore'
 import PackageList from './components/PackageList'
 import PackageEditor from './components/PackageEditor'
 import RestrictionPanel from './components/RestrictionPanel'
@@ -9,9 +9,13 @@ import FrontDeskQuote from './components/FrontDeskQuote'
 import ChangeHistory from './components/ChangeHistory'
 import './styles/App.css'
 
-function App() {
+function AppInner() {
   const [view, setView] = useState<ViewType>('list')
   const store = useAppStore()
+
+  useEffect(() => {
+    store.executeDueSchedules()
+  }, [store])
 
   const tabs = [
     { key: 'list' as ViewType, label: '套餐管理', icon: '📋' },
@@ -160,6 +164,14 @@ function App() {
         </span>
       </footer>
     </div>
+  )
+}
+
+function App() {
+  return (
+    <AppStoreProvider>
+      <AppInner />
+    </AppStoreProvider>
   )
 }
 
