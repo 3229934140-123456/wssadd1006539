@@ -51,13 +51,58 @@ export interface ExportSettings {
   outputTypes: ('deskCard' | 'clinicNotice' | 'momentsPoster')[]
 }
 
-export interface AppData {
+export type PackageStatus = 'active' | 'expired' | 'draft'
+
+export interface DentalPackage {
+  id: string
+  status: PackageStatus
   packageInfo: PackageInfo
   restrictionRules: RestrictionRules
   exportSettings: ExportSettings
+  createdAt: string
+  updatedAt: string
+}
+
+export type ChangeField = 'packageInfo.name' | 'packageInfo.price' | 'restrictionRules' | 'exportSettings' | 'status' | 'other'
+
+export interface ChangeHistoryEntry {
+  id: string
+  packageId: string
+  packageName: string
+  timestamp: string
+  operator: string
+  field: ChangeField
+  summary: string
+  snapshot: {
+    packageInfo: PackageInfo
+    restrictionRules: RestrictionRules
+    exportSettings: ExportSettings
+  }
+}
+
+export interface FrontDeskInput {
+  age: number | null
+  isMember: boolean
+  isPregnant: boolean
+  appointmentDate: string
+  appointmentTime: string
+}
+
+export interface FrontDeskResult {
+  packageId: string
+  packageName: string
+  allowed: boolean
+  reasons: string[]
+  customerMessage: string
+}
+
+export interface AppState {
+  packages: DentalPackage[]
+  currentPackageId: string | null
+  history: ChangeHistoryEntry[]
   lastSavedAt: string | null
 }
 
-export type TabType = 'editor' | 'restriction' | 'export'
+export type ViewType = 'list' | 'editor' | 'restriction' | 'export' | 'frontdesk' | 'history'
 
 export type OutputType = 'deskCard' | 'clinicNotice' | 'momentsPoster'

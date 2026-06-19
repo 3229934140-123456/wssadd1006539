@@ -1,65 +1,94 @@
-import { useState, useEffect } from 'react'
-import { PackageInfo, RestrictionRules, ExportSettings, TabType } from './types'
-import { usePersistentState, getLastSavedTime, formatSavedTime } from './hooks/usePersistentState'
+import { useState } from 'react'
+import { ViewType } from './types'
+import { useAppStore } from './hooks/useAppStore'
+import PackageList from './components/PackageList'
 import PackageEditor from './components/PackageEditor'
 import RestrictionPanel from './components/RestrictionPanel'
 import ExportPanel from './components/ExportPanel'
+import FrontDeskQuote from './components/FrontDeskQuote'
+import ChangeHistory from './components/ChangeHistory'
 import './styles/App.css'
 
-const defaultPackageInfo: PackageInfo = {
-  name: '尊享洁牙抛光套餐',
-  targetAudience: '成人',
-  items: [
-    { id: '1', name: '全口超声波洁牙' },
-    { id: '2', name: '牙齿抛光' },
-    { id: '3', name: '口腔检查' },
-    { id: '4', name: '牙周护理指导' },
-  ],
-  retailPrice: 398,
-  activityPrice: 198,
-  validFrom: '2025-01-01',
-  validTo: '2025-12-31',
-  allowTransfer: true,
-}
-
-const defaultRestrictionRules: RestrictionRules = {
-  childrenNotAllowed: false,
-  pregnancyNeedDoctor: true,
-  memberOnly: false,
-  holidayNotAvailable: false,
-  ageRange: { enabled: false, min: 0, max: 0 },
-  timeSlot: { enabled: false, weekdaysOnly: false, startTime: '09:00', endTime: '18:00' },
-  minimumConsumption: { enabled: false, amount: 0 },
-  stackableDiscount: true,
-  customRules: [],
-}
-
-const defaultExportSettings: ExportSettings = {
-  storeName: '康美口腔诊所',
-  paperSize: 'A5',
-  showOriginalPrice: true,
-  outputTypes: ['deskCard'],
-}
-
 function App() {
-  const [activeTab, setActiveTab] = useState<TabType>('editor')
-  const [packageInfo, setPackageInfo] = usePersistentState<PackageInfo>('packageInfo', defaultPackageInfo)
-  const [restrictionRules, setRestrictionRules] = usePersistentState<RestrictionRules>('restrictionRules', defaultRestrictionRules)
-  const [exportSettings, setExportSettings] = usePersistentState<ExportSettings>('exportSettings', defaultExportSettings)
-  const [savedTimeDisplay, setSavedTimeDisplay] = useState(formatSavedTime(getLastSavedTime()))
-
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setSavedTimeDisplay(formatSavedTime(getLastSavedTime()))
-    }, 30000)
-    return () => clearInterval(timer)
-  }, [packageInfo, restrictionRules, exportSettings])
+  const [view, setView] = useState<ViewType>('list')
+  const store = useAppStore()
 
   const tabs = [
-    { key: 'editor' as TabType, label: '套餐编辑', icon: '✏️' },
-    { key: 'restriction' as TabType, label: '收费限制', icon: '🚫' },
-    { key: 'export' as TabType, label: '打印导出', icon: '🖨️' },
+    { key: 'list' as ViewType, label: '套餐管理', icon: '📋' },
+    { key: 'frontdesk' as ViewType, label: '前台报价', icon: '💁' },
+    { key: 'history' as ViewType, label: '变更记录', icon: '📝' },
   ]
+
+  const editorTabs = [
+    { key: 'editor' as ViewType, label: '套餐编辑', icon: '✏️' },
+    { key: 'restriction' as ViewType, label: '收费限制', icon: '🚫' },
+    { key: 'export' as ViewType, label: '打印导出', icon: '🖨️' },
+  ]
+
+  const isEditingPackage = view === 'editor' || view === 'restriction' || view === 'export'
+
+  const renderMain = () => {
+    if (view === 'list') {
+      return (
+        <PackageList
+          packages={store.state.packages}
+          currentPackageId={store.state.currentPackageId}
+          onSelect={store.selectPackage}
+          onNavigate={setView}
+          onCreate={() => store.createPackage()}
+          onDuplicate={store.duplicatePackage}
+          onSetStatus={store.setPackageStatus}
+        />
+      )
+    }
+    if (view === 'frontdesk') {
+      return <FrontDeskQuote packages={store.state.packages} />
+    }
+    if (view === 'history') {
+      return (
+        <ChangeHistory
+          history={store.state.history}
+          onRestore={store.restoreFromHistory}
+        />
+      )
+    }
+    if (!store.currentPackage) {
+      return (
+        <div className="empty-state">
+          <div className="empty-icon">📋</div>
+          <p>请先从套餐管理选择一个套餐</p>
+          <button className="btn btn-primary" onClick={() => setView('list')}>去选择套餐</button>
+        </div>
+      )
+    }
+    if (view === 'editor') {
+      return (
+        <PackageEditor
+          packageInfo={store.currentPackage.packageInfo}
+          onChange={store.setPackageInfo}
+        />
+      )
+    }
+    if (view === 'restriction') {
+      return (
+        <RestrictionPanel
+          rules={store.currentPackage.restrictionRules}
+          onChange={store.setRestrictionRules}
+        />
+      )
+    }
+    if (view === 'export') {
+      return (
+        <ExportPanel
+          packageInfo={store.currentPackage.packageInfo}
+          rules={store.currentPackage.restrictionRules}
+          settings={store.currentPackage.exportSettings}
+          onChange={store.setExportSettings}
+        />
+      )
+    }
+    return null
+  }
 
   return (
     <div className="app">
@@ -70,58 +99,64 @@ function App() {
             <h1 className="app-title">口腔诊所套餐配置器</h1>
             <p className="app-subtitle">洁牙抛光收费规则管理系统</p>
           </div>
+          {isEditingPackage && store.currentPackage && (
+            <div className="current-package-badge">
+              正在编辑：<strong>{store.currentPackage.packageInfo.name}</strong>
+            </div>
+          )}
         </div>
         <div className="header-tip">
-          <span className="tip-icon">�</span>
-          <span>修改即保存 · 已落盘</span>
+          <span className="tip-icon">💾</span>
+          <span>{store.savedTimeDisplay}</span>
         </div>
       </header>
 
       <nav className="app-nav">
-        <div className="nav-tabs">
-          {tabs.map((tab) => (
+        {!isEditingPackage ? (
+          <div className="nav-tabs">
+            {tabs.map((tab) => (
+              <button
+                key={tab.key}
+                className={`nav-tab ${view === tab.key ? 'active' : ''}`}
+                onClick={() => setView(tab.key)}
+              >
+                <span className="nav-tab-icon">{tab.icon}</span>
+                <span className="nav-tab-label">{tab.label}</span>
+              </button>
+            ))}
+          </div>
+        ) : (
+          <div className="nav-tabs">
             <button
-              key={tab.key}
-              className={`nav-tab ${activeTab === tab.key ? 'active' : ''}`}
-              onClick={() => setActiveTab(tab.key)}
+              className="nav-tab back-tab"
+              onClick={() => setView('list')}
             >
-              <span className="nav-tab-icon">{tab.icon}</span>
-              <span className="nav-tab-label">{tab.label}</span>
+              <span className="nav-tab-icon">←</span>
+              <span className="nav-tab-label">返回套餐列表</span>
             </button>
-          ))}
-        </div>
-        <div className="nav-progress">
-          <div
-            className="progress-bar"
-            style={{
-              width: `${((tabs.findIndex((t) => t.key === activeTab) + 1) / tabs.length) * 100}%`,
-            }}
-          />
-        </div>
+            {editorTabs.map((tab) => (
+              <button
+                key={tab.key}
+                className={`nav-tab ${view === tab.key ? 'active' : ''}`}
+                onClick={() => setView(tab.key)}
+              >
+                <span className="nav-tab-icon">{tab.icon}</span>
+                <span className="nav-tab-label">{tab.label}</span>
+              </button>
+            ))}
+          </div>
+        )}
       </nav>
 
       <main className="app-main">
-        {activeTab === 'editor' && (
-          <PackageEditor packageInfo={packageInfo} onChange={setPackageInfo} />
-        )}
-        {activeTab === 'restriction' && (
-          <RestrictionPanel rules={restrictionRules} onChange={setRestrictionRules} />
-        )}
-        {activeTab === 'export' && (
-          <ExportPanel
-            packageInfo={packageInfo}
-            rules={restrictionRules}
-            settings={exportSettings}
-            onChange={setExportSettings}
-          />
-        )}
+        {renderMain()}
       </main>
 
       <footer className="app-footer">
         <span>© 2025 口腔诊所套餐配置器</span>
         <span className="footer-status">
           <span className="status-dot"></span>
-          {savedTimeDisplay}
+          共 {store.state.packages.length} 个套餐 · {store.state.history.length} 条变更记录
         </span>
       </footer>
     </div>

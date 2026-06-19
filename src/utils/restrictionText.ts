@@ -38,7 +38,7 @@ export function generateFrontDeskText(rules: RestrictionRules): string[] {
   }
 
   if (rules.minimumConsumption.enabled && rules.minimumConsumption.amount > 0) {
-    lines.push(`本套餐最低消费 ¥${rules.minimumConsumption}，不足部分不退不补。`)
+    lines.push(`本套餐最低消费 ¥${rules.minimumConsumption.amount}，不足部分不退不补。`)
   }
 
   if (!rules.stackableDiscount) {

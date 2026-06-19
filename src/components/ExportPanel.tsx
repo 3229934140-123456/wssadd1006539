@@ -50,6 +50,10 @@ function ExportPanel({ packageInfo, rules, settings, onChange }: Props) {
   const restrictionLines = generateFrontDeskText(rules)
   const restrictionTags = generateRestrictionSummary(rules)
 
+  if (previewPage >= settings.outputTypes.length) {
+    setTimeout(() => setPreviewPage(0), 0)
+  }
+
   const scaleFromPaper = () => {
     const ps = paperSizes.find((p) => p.value === settings.paperSize)
     if (!ps) return 1
@@ -67,14 +71,108 @@ function ExportPanel({ packageInfo, rules, settings, onChange }: Props) {
     }
   }
 
+  const paperPrintStyle = (): React.CSSProperties => {
+    const ps = paperSizes.find((p) => p.value === settings.paperSize)
+    if (!ps) return {}
+    return {
+      width: ps.w + 'mm',
+      minHeight: ps.h + 'mm',
+    }
+  }
+
   const handlePrint = () => {
     const printWindow = window.open('', '_blank')
     if (!printWindow || !printRef.current) return
-    const content = printRef.current.innerHTML
-    printWindow.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>打印价目单</title><style>body{margin:0;padding:20px;font-family:-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei',sans-serif;color:#333;}@page{size:${settings.paperSize};margin:10mm;}.page{page-break-after:always;padding:20px;}.page:last-child{page-break-after:auto;}</style></head><body>${content}</body></html>`)
-    printWindow.document.close()
-    printWindow.print()
+
+    const pagesHtml: string[] = []
+    settings.outputTypes.forEach((type) => {
+      if (type === 'deskCard') pagesHtml.push(renderDeskCardHtml())
+      if (type === 'clinicNotice') pagesHtml.push(renderClinicNoticeHtml())
+      if (type === 'momentsPoster') pagesHtml.push(renderMomentsPosterHtml())
+    })
+
+    const html = `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>${packageInfo.name || '价目单'}</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+    color: #333;
   }
+  @page {
+    size: ${settings.paperSize};
+    margin: 10mm;
+  }
+  .print-page {
+    page-break-after: always;
+    padding: 0;
+    background: white;
+  }
+  .print-page:last-child { page-break-after: auto; }
+  ${printCssRules()}
+</style>
+</head>
+<body>${pagesHtml.join('')}</body>
+</html>`
+
+    printWindow.document.write(html)
+    printWindow.document.close()
+    setTimeout(() => printWindow.print(), 200)
+  }
+
+  const printCssRules = () => `
+    .desk-card-store { text-align: center; font-size: 15px; font-weight: 600; color: #333; margin-bottom: 14px; }
+    .preview-card { background: linear-gradient(135deg, #ffffff 0%, #f8fdfb 100%); border: 1px solid #e8f5f2; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 16px rgba(0, 184, 148, 0.08); }
+    .preview-card-header { background: linear-gradient(135deg, #00b894 0%, #00cec9 100%); color: white; padding: 18px; text-align: center; }
+    .preview-package-name { font-size: 19px; font-weight: 600; margin-bottom: 6px; }
+    .preview-audience-tag { display: inline-block; padding: 3px 12px; background: rgba(255,255,255,0.25); border-radius: 12px; font-size: 12px; }
+    .preview-card-body { padding: 18px; }
+    .preview-items { margin-bottom: 16px; }
+    .preview-items h4 { font-size: 13px; color: #666; margin-bottom: 10px; font-weight: 500; }
+    .preview-items ul { display: flex; flex-direction: column; gap: 8px; }
+    .preview-items li { display: flex; align-items: center; gap: 8px; font-size: 14px; color: #333; }
+    .check-icon { color: #00b894; font-weight: bold; }
+    .preview-price { text-align: center; padding: 14px 0; border-top: 1px dashed #e8f5f2; }
+    .original-price { font-size: 14px; color: #999; margin-bottom: 6px; }
+    .original-price span { text-decoration: line-through; }
+    .activity-price { display: flex; align-items: baseline; justify-content: center; gap: 4px; }
+    .price-symbol { font-size: 16px; color: #ff6b6b; font-weight: 600; }
+    .price-value { font-size: 32px; font-weight: 700; color: #ff6b6b; }
+    .discount-tag { margin-left: 8px; padding: 3px 10px; background: #ff6b6b; color: white; font-size: 12px; border-radius: 4px; font-weight: 500; }
+    .preview-card-footer { padding: 10px 18px; background: #f8fdfb; display: flex; justify-content: space-between; align-items: center; font-size: 12px; color: #888; }
+    .transfer-allowed { color: #00b894; }
+    .transfer-not-allowed { color: #999; }
+    .card-restriction-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; justify-content: center; }
+    .restriction-tag-item { padding: 3px 10px; background: #fef0f0; color: #e74c3c; border-radius: 12px; font-size: 11px; font-weight: 500; }
+    .card-footer-contact { text-align: center; font-size: 12px; color: #999; margin-top: 16px; padding-top: 12px; border-top: 1px dashed #e4e7ed; }
+    .clinic-notice-preview { background: white; padding: 20px; }
+    .clinic-notice-preview h3 { text-align: center; font-size: 17px; color: #333; margin-bottom: 16px; padding-bottom: 10px; border-bottom: 2px solid #00b894; }
+    .notice-content { margin-bottom: 24px; }
+    .notice-content p { margin-bottom: 8px; font-size: 14px; color: #333; line-height: 1.7; }
+    .notice-content h4 { font-size: 14px; color: #333; margin: 14px 0 8px; }
+    .notice-content ol, .notice-content ul { margin-left: 20px; margin-bottom: 8px; }
+    .notice-content li { margin-bottom: 4px; font-size: 13px; color: #555; }
+    .notice-content ol { list-style: decimal; }
+    .notice-content ul { list-style: disc; }
+    .highlight-price { color: #ff6b6b; font-size: 15px !important; font-weight: 600; }
+    .notice-signatures { margin-top: 24px; display: flex; flex-direction: column; gap: 14px; }
+    .signature-line { display: flex; align-items: center; font-size: 14px; color: #555; }
+    .signature-placeholder { flex: 1; border-bottom: 1px solid #333; margin-left: 8px; }
+    .moments-preview { background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 2px 12px rgba(0,0,0,0.1); }
+    .moments-header { display: flex; align-items: center; gap: 12px; padding: 14px; border-bottom: 1px solid #f0f0f0; }
+    .moments-avatar { width: 44px; height: 44px; background: linear-gradient(135deg, #00b894 0%, #00cec9 100%); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 24px; }
+    .moments-name { font-size: 14px; font-weight: 600; color: #576b95; }
+    .moments-content { padding: 14px; }
+    .moments-content p { font-size: 14px; color: #333; line-height: 1.7; margin-bottom: 6px; }
+    .moments-price { font-size: 15px !important; color: #333; }
+    .moments-price strong { color: #ff6b6b; font-size: 17px; }
+    .moments-restrictions { color: #e74c3c !important; font-size: 12px !important; }
+    .hashtags { color: #576b95 !important; margin-top: 10px !important; font-size: 13px !important; }
+  `
 
   const handleExportText = () => {
     const storeName = settings.storeName || '口腔诊所'
@@ -115,6 +213,9 @@ function ExportPanel({ packageInfo, rules, settings, onChange }: Props) {
     text += `活动价：¥${packageInfo.activityPrice}\n\n`
     text += `有效期：${formatDate(packageInfo.validFrom)} - ${formatDate(packageInfo.validTo)}\n`
     text += `${packageInfo.allowTransfer ? '可转赠' : '不可转赠'}\n`
+    if (rules.minimumConsumption.enabled && rules.minimumConsumption.amount > 0) {
+      text += `\n最低消费：¥${rules.minimumConsumption.amount}\n`
+    }
     if (restrictionTags.length > 0) text += `\n使用限制：${restrictionTags.join(' · ')}\n`
     text += `\n${'='.repeat(30)}\n地址：__________ 电话：__________`
     return text
@@ -126,7 +227,11 @@ function ExportPanel({ packageInfo, rules, settings, onChange }: Props) {
     packageInfo.items.forEach((item, idx) => { text += `  ${idx + 1}. ${item.name}\n` })
     text += '\n费用说明：\n'
     if (settings.showOriginalPrice) text += `  门市价：¥${packageInfo.retailPrice}\n`
-    text += `  实收价：¥${packageInfo.activityPrice}\n\n使用规则：\n`
+    text += `  实收价：¥${packageInfo.activityPrice}\n`
+    if (rules.minimumConsumption.enabled && rules.minimumConsumption.amount > 0) {
+      text += `  最低消费：¥${rules.minimumConsumption.amount}\n`
+    }
+    text += '\n使用规则：\n'
     text += `  • 有效期：${formatDate(packageInfo.validFrom)} 至 ${formatDate(packageInfo.validTo)}\n`
     text += `  • ${packageInfo.allowTransfer ? '可转赠他人使用' : '仅限本人使用'}\n`
     restrictionLines.forEach((line) => { text += `  • ${line}\n` })
@@ -139,16 +244,125 @@ function ExportPanel({ packageInfo, rules, settings, onChange }: Props) {
     packageInfo.items.forEach((item) => { text += `   ✨ ${item.name}\n` })
     text += '\n'
     if (settings.showOriginalPrice) text += `💰 原价 ¥${packageInfo.retailPrice}\n`
-    text += `🎉 活动价仅需 ¥${packageInfo.activityPrice}！\n\n⏰ 活动时间：${formatDate(packageInfo.validFrom)} - ${formatDate(packageInfo.validTo)}\n`
+    text += `🎉 活动价仅需 ¥${packageInfo.activityPrice}！`
+    if (rules.minimumConsumption.enabled && rules.minimumConsumption.amount > 0) {
+      text += `（最低消费 ¥${rules.minimumConsumption.amount}）`
+    }
+    text += `\n\n⏰ 活动时间：${formatDate(packageInfo.validFrom)} - ${formatDate(packageInfo.validTo)}\n`
     if (packageInfo.allowTransfer) text += '🎁 支持转赠，送家人送朋友都合适！\n'
     text += `\n📍 ${storeName}\n📞 预约电话：__________\n\n转发此海报到朋友圈，到店出示即可享受优惠！\n#口腔护理 #洁牙 #健康牙齿`
     return text
+  }
+
+  const renderDeskCardHtml = () => {
+    const minCon = (rules.minimumConsumption.enabled && rules.minimumConsumption.amount > 0)
+      ? `<div class="card-min-consumption">最低消费 ¥${rules.minimumConsumption.amount}</div>`
+      : ''
+    const discount = packageInfo.retailPrice > 0 ? Math.round((packageInfo.activityPrice / packageInfo.retailPrice) * 100) / 10 : 0
+    return `<div class="print-page" style="${inlineStyle(paperPrintStyle())}">
+      <div class="desk-card-store">${settings.storeName || '口腔诊所'}</div>
+      <div class="preview-card">
+        <div class="preview-card-header">
+          <div class="preview-package-name">${escapeHtml(packageInfo.name || '套餐名称')}</div>
+          ${packageInfo.targetAudience ? `<span class="preview-audience-tag">${escapeHtml(packageInfo.targetAudience)}</span>` : ''}
+        </div>
+        <div class="preview-card-body">
+          <div class="preview-items">
+            <h4>包含项目</h4>
+            <ul>
+              ${packageInfo.items.length > 0 ? packageInfo.items.map((it) => `<li><span class="check-icon">✓</span>${escapeHtml(it.name)}</li>`).join('') : '<li style="color:#c0c4cc;font-style:italic">暂无项目</li>'}
+            </ul>
+          </div>
+          <div class="preview-price">
+            ${settings.showOriginalPrice && packageInfo.retailPrice > 0 ? `<div class="original-price">门市价：<span>¥${packageInfo.retailPrice}</span></div>` : ''}
+            <div class="activity-price">
+              <span class="price-symbol">¥</span>
+              <span class="price-value">${packageInfo.activityPrice > 0 ? packageInfo.activityPrice : '0'}</span>
+              ${discount > 0 && discount < 10 ? `<span class="discount-tag">${discount}折</span>` : ''}
+            </div>
+          </div>
+        </div>
+        <div class="preview-card-footer">
+          <div class="valid-period">有效期：${formatDate(packageInfo.validFrom)} 至 ${formatDate(packageInfo.validTo)}</div>
+          <div class="transfer-info">${packageInfo.allowTransfer ? '<span class="transfer-allowed">可转赠</span>' : '<span class="transfer-not-allowed">不可转赠</span>'}</div>
+        </div>
+      </div>
+      ${restrictionTags.length > 0 ? `<div class="card-restriction-tags">${restrictionTags.map((t) => `<span class="restriction-tag-item">${escapeHtml(t)}</span>`).join('')}</div>` : ''}
+      ${minCon}
+      <div class="card-footer-contact">地址：__________ 电话：__________</div>
+    </div>`
+  }
+
+  const renderClinicNoticeHtml = () => {
+    return `<div class="print-page" style="${inlineStyle(paperPrintStyle())}">
+      <div class="clinic-notice-preview">
+        <h3>${settings.storeName || '口腔诊所'} - 诊室告知单</h3>
+        <div class="notice-content">
+          <p><strong>套餐名称：</strong>${escapeHtml(packageInfo.name || '套餐名称')}</p>
+          <p><strong>适用人群：</strong>${escapeHtml(packageInfo.targetAudience || '全年龄段')}</p>
+          <h4>服务内容：</h4>
+          <ol>
+            ${packageInfo.items.length > 0 ? packageInfo.items.map((it) => `<li>${escapeHtml(it.name)}</li>`).join('') : '<li>暂无项目</li>'}
+          </ol>
+          <h4>费用说明：</h4>
+          ${settings.showOriginalPrice ? `<p>门市价：¥${packageInfo.retailPrice}</p>` : ''}
+          <p class="highlight-price">实收价：¥${packageInfo.activityPrice}</p>
+          ${rules.minimumConsumption.enabled && rules.minimumConsumption.amount > 0 ? `<p><strong>最低消费：</strong>¥${rules.minimumConsumption.amount}（不足部分不退不补）</p>` : ''}
+          <h4>使用规则：</h4>
+          <ul>
+            <li>有效期：${formatDate(packageInfo.validFrom)} 至 ${formatDate(packageInfo.validTo)}</li>
+            <li>${packageInfo.allowTransfer ? '可转赠他人使用' : '仅限本人使用'}</li>
+            ${restrictionLines.map((l) => `<li>${escapeHtml(l)}</li>`).join('')}
+          </ul>
+        </div>
+        <div class="notice-signatures">
+          <div class="signature-line"><span>患者确认签字：</span><span class="signature-placeholder"></span></div>
+          <div class="signature-line"><span>日期：</span><span class="signature-placeholder"></span></div>
+          <div class="signature-line"><span>医生/护士签字：</span><span class="signature-placeholder"></span></div>
+        </div>
+      </div>
+    </div>`
+  }
+
+  const renderMomentsPosterHtml = () => {
+    return `<div class="print-page" style="${inlineStyle(paperPrintStyle())}">
+      <div class="moments-preview">
+        <div class="moments-header">
+          <div class="moments-avatar">🦷</div>
+          <div class="moments-name">${escapeHtml(settings.storeName || '口腔诊所')}</div>
+        </div>
+        <div class="moments-content">
+          <p>【${escapeHtml(settings.storeName || '口腔诊所')}】特惠来袭！🦷✨</p>
+          <p><strong>🌟 ${escapeHtml(packageInfo.name || '超值套餐')} 🌟</strong></p>
+          <p>适用：${escapeHtml(packageInfo.targetAudience || '所有人')}</p>
+          <p>🎁 包含项目：</p>
+          ${packageInfo.items.map((it) => `<p>&nbsp;&nbsp;&nbsp;✨ ${escapeHtml(it.name)}</p>`).join('')}
+          ${settings.showOriginalPrice ? `<p>💰 原价 ¥${packageInfo.retailPrice}</p>` : ''}
+          <p class="moments-price">🎉 活动价仅需 <strong>¥${packageInfo.activityPrice}</strong>${rules.minimumConsumption.enabled && rules.minimumConsumption.amount > 0 ? `（最低消费 ¥${rules.minimumConsumption.amount}）` : ''}！</p>
+          <p>⏰ 活动时间：${formatDate(packageInfo.validFrom)} - ${formatDate(packageInfo.validTo)}</p>
+          ${packageInfo.allowTransfer ? '<p>🎁 支持转赠，送家人送朋友都合适！</p>' : ''}
+          ${restrictionTags.length > 0 ? `<p class="moments-restrictions">📌 ${restrictionTags.map(escapeHtml).join(' · ')}</p>` : ''}
+          <p class="hashtags">#口腔护理 #洁牙 #健康牙齿</p>
+        </div>
+      </div>
+    </div>`
+  }
+
+  function escapeHtml(s: string) {
+    return s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] || c))
+  }
+
+  function inlineStyle(style: React.CSSProperties): string {
+    return Object.entries(style).map(([k, v]) => `${k.replace(/[A-Z]/g, (m) => '-' + m.toLowerCase())}:${v}`).join(';')
   }
 
   const renderDeskCard = () => (
     <div className={`print-page paper-${settings.paperSize.toLowerCase()}`} style={paperStyle()}>
       <div className="desk-card-store">{settings.storeName || '口腔诊所'}</div>
       <PreviewCard packageInfo={packageInfo} showOriginalPrice={settings.showOriginalPrice} />
+      {rules.minimumConsumption.enabled && rules.minimumConsumption.amount > 0 && (
+        <div className="card-min-consumption">最低消费 ¥{rules.minimumConsumption.amount}（不足部分不退不补）</div>
+      )}
       {restrictionTags.length > 0 && (
         <div className="card-restriction-tags">
           {restrictionTags.map((tag, i) => (
@@ -156,9 +370,7 @@ function ExportPanel({ packageInfo, rules, settings, onChange }: Props) {
           ))}
         </div>
       )}
-      <div className="card-footer-contact">
-        地址：__________ 电话：__________
-      </div>
+      <div className="card-footer-contact">地址：__________ 电话：__________</div>
     </div>
   )
 
@@ -178,6 +390,9 @@ function ExportPanel({ packageInfo, rules, settings, onChange }: Props) {
           <h4>费用说明：</h4>
           {settings.showOriginalPrice && <p>门市价：¥{packageInfo.retailPrice}</p>}
           <p className="highlight-price">实收价：¥{packageInfo.activityPrice}</p>
+          {rules.minimumConsumption.enabled && rules.minimumConsumption.amount > 0 && (
+            <p><strong>最低消费：</strong>¥{rules.minimumConsumption.amount}（不足部分不退不补）</p>
+          )}
           <h4>使用规则：</h4>
           <ul>
             <li>有效期：{formatDate(packageInfo.validFrom)} 至 {formatDate(packageInfo.validTo)}</li>
@@ -212,7 +427,12 @@ function ExportPanel({ packageInfo, rules, settings, onChange }: Props) {
             <p key={item.id}>&nbsp;&nbsp;&nbsp;✨ {item.name}</p>
           ))}
           {settings.showOriginalPrice && <p>💰 原价 ¥{packageInfo.retailPrice}</p>}
-          <p className="moments-price">🎉 活动价仅需 <strong>¥{packageInfo.activityPrice}</strong>！</p>
+          <p className="moments-price">
+            🎉 活动价仅需 <strong>¥{packageInfo.activityPrice}</strong>
+            {rules.minimumConsumption.enabled && rules.minimumConsumption.amount > 0 && (
+              <span>（最低消费 ¥{rules.minimumConsumption.amount}）</span>
+            )}！
+          </p>
           <p>⏰ 活动时间：{formatDate(packageInfo.validFrom)} - {formatDate(packageInfo.validTo)}</p>
           {packageInfo.allowTransfer && <p>🎁 支持转赠，送家人送朋友都合适！</p>}
           {restrictionTags.length > 0 && (
@@ -244,7 +464,7 @@ function ExportPanel({ packageInfo, rules, settings, onChange }: Props) {
         </div>
 
         <div className="form-group">
-          <label>纸张大小</label>
+          <label>纸张大小（版式会跟随变化）</label>
           <div className="radio-group">
             {paperSizes.map((size) => (
               <label key={size.value} className="radio-label">
@@ -263,7 +483,7 @@ function ExportPanel({ packageInfo, rules, settings, onChange }: Props) {
         </div>
 
         <div className="form-group">
-          <label>输出类型（可多选批量生成）</label>
+          <label>输出物料（可多选，打印时会输出全部）</label>
           <div className="output-type-grid">
             {outputTypeOptions.map((type) => (
               <div
@@ -286,14 +506,17 @@ function ExportPanel({ packageInfo, rules, settings, onChange }: Props) {
               </div>
             ))}
           </div>
+          <div className="output-selected-hint">
+            已选 {settings.outputTypes.length} 项物料，打印时会自动分页输出
+          </div>
         </div>
 
         <div className="export-actions">
           <button onClick={handlePrint} className="btn btn-primary">
-            打印所选
+            🖨 打印所选（共{settings.outputTypes.length}页）
           </button>
           <button onClick={handleExportText} className="btn btn-secondary">
-            导出文案
+            📥 导出文案
           </button>
         </div>
       </div>
@@ -306,6 +529,11 @@ function ExportPanel({ packageInfo, rules, settings, onChange }: Props) {
           </h2>
           {settings.outputTypes.length > 1 && (
             <div className="preview-pagination">
+              <button
+                className="page-arrow"
+                onClick={() => setPreviewPage(Math.max(0, previewPage - 1))}
+                disabled={previewPage === 0}
+              >‹</button>
               {settings.outputTypes.map((type, idx) => (
                 <button
                   key={type}
@@ -314,6 +542,11 @@ function ExportPanel({ packageInfo, rules, settings, onChange }: Props) {
                   title={outputTypeOptions.find((t) => t.key === type)?.label}
                 />
               ))}
+              <button
+                className="page-arrow"
+                onClick={() => setPreviewPage(Math.min(settings.outputTypes.length - 1, previewPage + 1))}
+                disabled={previewPage === settings.outputTypes.length - 1}
+              >›</button>
               <span className="page-info">{previewPage + 1} / {settings.outputTypes.length}</span>
             </div>
           )}
